@@ -1,0 +1,11 @@
+[{
+        "Cpu": 256,
+        "image": "marketingtemplateapi",
+        "Memory": 512,
+        "name": "app",
+        "networkMode": "awsvpc",
+        "portMappings": [{
+                "ContainerPort": 8080,
+                "HostPort": 8080
+        }]
+}]
