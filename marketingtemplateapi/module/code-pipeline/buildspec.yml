@@ -1,0 +1,51 @@
+version: 0.2
+
+env:
+   type: LINUX_CONTAINER
+   image: aws/codebuild/docker:18.09.6
+phases:
+  pre_build:
+    commands:
+      - pip install awscli --upgrade --user
+      - echo `aws --version`
+      - echo Entered the install phase...
+      - apt-get update -y
+      - apt-get install -y software-properties-common
+      - add-apt-repository ppa:openjdk-r/ppa
+      - apt-get update -y
+      - apt-get install -y openjdk-8-jdk
+      - apt-get install -y maven
+      - echo Logging in to Amazon ECR...
+      - echo ${repository_url}
+      - $(aws ecr get-login --region ${region} --no-include-email)
+      - REPOSITORY_URI=${repository_url}
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - echo Entered the pre_build phase...
+  build:
+    commands:
+      - echo Java Home is ...............
+      - echo $JAVA_HOME
+      - echo Path is ............
+      - echo $PATH
+      - echo Contents of dir..........
+      - echo `ls /usr/lib/jvm`
+      - echo Build started on `date`
+      - echo performing  build
+      - cd webapp && mvn clean install
+      - echo Building the Docker image...
+      - cd ..
+      - docker build --no-cache -t $REPOSITORY_URI:marketingtemplateapi_latest .
+      - echo $REPOSITORY_URI
+      - docker tag $REPOSITORY_URI:marketingtemplateapi_latest $REPOSITORY_URI:marketingtemplateapi_$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - docker push $REPOSITORY_URI:marketingtemplateapi_latest
+      - docker push $REPOSITORY_URI:marketingtemplateapi_$IMAGE_TAG
+      - echo Writing image definitions file...
+      - printf '[{"name":"app","imageUri":"%s"}]' $REPOSITORY_URI:marketingtemplateapi_latest > imagedefinitions.json
+      - echo upgrading db-migrate task definitions
+      - aws ecs run-task --launch-type FARGATE --cluster ${cluster_name} --task-definition app --network-configuration 'awsvpcConfiguration={subnets=[<Add subnets here>],securityGroups=[<Add Security groups here>]}'
+artifacts:
+  files: imagedefinitions.json
